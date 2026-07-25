@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentry — Threat Detection Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="dot"></span>SENTRY</div>
+  <div class="subtitle">AI-powered threat detection — logs + live network</div>
+  <div class="api-status" id="api-status">connecting...</div>
+</header>
+
+<main>
+  <section class="stat-grid" id="stat-grid">
+    <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card"><div class="stat-label">Anomalies</div><div class="stat-value" id="s-anomalies">—</div></div>
+    <div class="stat-card"><div class="stat-label">Alerts</div><div class="stat-value" id="s-alerts">—</div></div>
+    <div class="stat-card"><div class="stat-label">Suspicious IPs</div><div class="stat-value" id="s-ips">—</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-value" id="s-avg">—</div></div>
+    <div class="stat-card"><div class="stat-label">Max Score</div><div class="stat-value" id="s-max">—</div></div>
+  </section>
+
+  <section class="charts-row">
+    <div class="panel">
+      <div class="panel-title">// activity by hour</div>
+      <canvas id="chart-timeline" height="140"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">// severity breakdown</div>
+      <canvas id="chart-severity" height="140"></canvas>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">// top suspicious ips</div>
+    <table class="data-table" id="top-ips-table">
+      <thead><tr><th>IP Address</th><th>Events</th><th>Avg Score</th><th>Max Score</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <div class="panel-title">// log-based alerts</div>
+      <div class="feed" id="log-alerts-feed"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">// live network alerts</div>
+      <div class="feed" id="network-alerts-feed"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">// analyse a login attempt</div>
+    <form id="analyse-form" class="analyse-form">
+      <input name="ip_address" placeholder="IP address" value="45.33.32.156" required>
+      <input name="username" placeholder="username" value="root" required>
+      <select name="status">
+        <option value="Failed" selected>Failed</option>
+        <option value="Success">Success</option>
+      </select>
+      <input name="failed_attempts" type="number" placeholder="failed attempts" value="40" required>
+      <input name="port" type="number" placeholder="port" value="22" required>
+      <input name="hour" type="number" min="0" max="23" placeholder="hour (0-23)" value="3" required>
+      <button type="submit">Analyse</button>
+    </form>
+    <div id="analyse-result"></div>
+  </section>
+</main>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
