@@ -1,5 +1,5 @@
 // Point this at your Flask API. Defaults to local dev server.
-const API = "http://127.0.0.1:5000";
+const API = "https://ai-ids-intrusion-detection-system.onrender.com";
 
 let timelineChart, severityChart, entityChart;
 let activeEntityIp = null;
