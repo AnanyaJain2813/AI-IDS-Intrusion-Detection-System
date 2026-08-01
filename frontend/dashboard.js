@@ -9,8 +9,42 @@ function fmtTime(ts) {
   return new Date(ts * 1000).toLocaleTimeString([], { hour12: false });
 }
 
+function getSavedToken() {
+  try {
+    return localStorage.getItem("sentry_api_key") || window.sentry_token || null;
+  } catch (e) {
+    return window.sentry_token || null;
+  }
+}
+
+function getSavedUsername() {
+  try {
+    return localStorage.getItem("sentry_username") || window.sentry_username || null;
+  } catch (e) {
+    return window.sentry_username || null;
+  }
+}
+
+function saveSession(apiKey, username) {
+  window.sentry_token = apiKey;
+  window.sentry_username = username;
+  try {
+    localStorage.setItem("sentry_api_key", apiKey);
+    localStorage.setItem("sentry_username", username);
+  } catch (e) {}
+}
+
+function clearSession() {
+  window.sentry_token = null;
+  window.sentry_username = null;
+  try {
+    localStorage.removeItem("sentry_api_key");
+    localStorage.removeItem("sentry_username");
+  } catch (e) {}
+}
+
 function getAuthHeaders() {
-  const token = localStorage.getItem("sentry_api_key");
+  const token = getSavedToken();
   const headers = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -29,8 +63,7 @@ async function fetchJSON(path) {
 }
 
 function handleUnauthorized() {
-  localStorage.removeItem("sentry_api_key");
-  localStorage.removeItem("sentry_username");
+  clearSession();
   document.getElementById("auth-container").style.display = "flex";
   document.querySelector("main").style.display = "none";
   document.getElementById("user-profile").style.display = "none";
@@ -112,8 +145,7 @@ async function doAuth(type) {
     }
 
     // Success! Save session state & open dashboard
-    localStorage.setItem("sentry_api_key", data.api_key);
-    localStorage.setItem("sentry_username", data.username);
+    saveSession(data.api_key, data.username);
 
     usernameInput.value = "";
     passwordInput.value = "";
@@ -130,8 +162,8 @@ async function doAuth(type) {
 }
 
 function checkLoginState() {
-  const token = localStorage.getItem("sentry_api_key");
-  const username = localStorage.getItem("sentry_username");
+  const token = getSavedToken();
+  const username = getSavedUsername();
 
   if (token) {
     document.getElementById("auth-container").style.display = "none";
