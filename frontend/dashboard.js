@@ -62,6 +62,11 @@ async function handleAuthSubmit(event) {
 
   const url = currentAuthTab === "login" ? "/api/login" : "/api/register";
 
+  const submitBtn = document.getElementById("auth-submit-btn");
+  const originalBtnText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Connecting to server (waking up)...";
+
   try {
     const res = await fetch(`${API}${url}`, {
       method: "POST",
@@ -79,7 +84,7 @@ async function handleAuthSubmit(event) {
     localStorage.setItem("sentry_username", data.username);
 
     if (currentAuthTab === "register") {
-      keyDisplayEl.innerHTML = `🔑 <strong>Registration Successful!</strong><br><br>Copy your Agent API Key:<br><code style="font-weight:bold; color:var(--low); font-size:13px; display:block; margin: 8px 0;">${data.api_key}</code>Use this when running the capture/monitor.py script!<br><br><button onclick="checkLoginState()" style="padding:4px 8px; font-family:inherit; background:var(--low); color:var(--bg); border:none; cursor:pointer;">Continue to Dashboard</button>`;
+      keyDisplayEl.innerHTML = `🔑 <strong>Registration Successful!</strong><br><br>Copy your Agent API Key:<br><code style="font-weight:bold; color:var(--low); font-size:13px; display:block; margin: 8px 0;">${data.api_key}</code><button onclick="checkLoginState()" style="padding:6px 12px; font-family:inherit; background:var(--low); color:var(--bg); border:none; cursor:pointer; font-weight:bold;">Continue to Dashboard</button>`;
       keyDisplayEl.style.display = "block";
       usernameInput.value = "";
       passwordInput.value = "";
@@ -89,7 +94,10 @@ async function handleAuthSubmit(event) {
       checkLoginState();
     }
   } catch (err) {
-    errorEl.textContent = "Could not connect to the Sentry server.";
+    errorEl.textContent = "Could not connect to server. Render free instance may still be waking up — please wait 15 seconds and try again.";
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalBtnText;
   }
 }
 
