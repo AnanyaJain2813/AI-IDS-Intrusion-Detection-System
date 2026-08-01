@@ -36,6 +36,26 @@ function handleUnauthorized() {
   document.getElementById("user-profile").style.display = "none";
 }
 
+async function pingServer() {
+  const badge = document.getElementById("server-status-badge");
+  if (!badge) return;
+  try {
+    const res = await fetch(`${API}/`, { method: "GET" });
+    if (res.ok) {
+      badge.textContent = "● SERVER ONLINE & READY ✅";
+      badge.style.color = "var(--ok)";
+    } else {
+      badge.textContent = "● WAKING UP FREE SERVER...";
+      badge.style.color = "var(--medium)";
+      setTimeout(pingServer, 4000);
+    }
+  } catch (e) {
+    badge.textContent = "● WAKING UP FREE SERVER (PLEASE WAIT)...";
+    badge.style.color = "var(--medium)";
+    setTimeout(pingServer, 4000);
+  }
+}
+
 async function doAuth(type) {
   const usernameInput = document.getElementById("auth-username");
   const passwordInput = document.getElementById("auth-password");
@@ -62,36 +82,54 @@ async function doAuth(type) {
   errorEl.style.color = "var(--low)";
   errorEl.textContent = `Connecting (${type === "register" ? "registering" : "logging in"})...`;
 
-  try {
-    const res = await fetch(`${API}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password })
-    });
+  // Attempt up to 3 retries automatically if server is cold-starting
+  let attempt = 0;
+  const maxAttempts = 3;
+  let success = false;
 
-    const data = await res.json();
-
-    if (!res.ok || !data.success) {
-      errorEl.style.color = "var(--high)";
-      errorEl.textContent = data.error || `${type} failed. Please try again.`;
-      return;
+  while (attempt < maxAttempts && !success) {
+    attempt++;
+    if (attempt > 1) {
+      errorEl.textContent = `Waking up Render server (Attempt ${attempt}/${maxAttempts})...`;
     }
 
-    localStorage.setItem("sentry_api_key", data.api_key);
-    localStorage.setItem("sentry_username", data.username);
+    try {
+      const res = await fetch(`${API}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
 
-    usernameInput.value = "";
-    passwordInput.value = "";
-    errorEl.textContent = "";
+      const data = await res.json();
 
-    checkLoginState();
-  } catch (err) {
-    errorEl.style.color = "var(--high)";
-    errorEl.textContent = "Could not connect to server. Free server may be waking up — wait 10s and try again.";
-  } finally {
-    if (btnLogin) btnLogin.disabled = false;
-    if (btnRegister) btnRegister.disabled = false;
+      if (!res.ok || !data.success) {
+        errorEl.style.color = "var(--high)";
+        errorEl.textContent = data.error || `${type} failed. Please try again.`;
+        break;
+      }
+
+      localStorage.setItem("sentry_api_key", data.api_key);
+      localStorage.setItem("sentry_username", data.username);
+
+      usernameInput.value = "";
+      passwordInput.value = "";
+      errorEl.textContent = "";
+      success = true;
+
+      checkLoginState();
+      pingServer();
+    } catch (err) {
+      if (attempt >= maxAttempts) {
+        errorEl.style.color = "var(--high)";
+        errorEl.textContent = "Could not connect to backend server. Please wait 10 seconds for the free Render server to finish waking up, then try again.";
+      } else {
+        await new Promise(r => setTimeout(r, 4000));
+      }
+    }
   }
+
+  if (btnLogin) btnLogin.disabled = false;
+  if (btnRegister) btnRegister.disabled = false;
 }
 
 function checkLoginState() {
@@ -106,6 +144,7 @@ function checkLoginState() {
     refresh();
   } else {
     handleUnauthorized();
+    pingServer();
   }
 }
 
