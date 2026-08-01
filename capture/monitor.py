@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
 }
 
 
-def make_reporter(api_url):
+def make_reporter(api_url, api_key=None):
     def report(category, message, ip_address=None, port=None, intensity=1.0, meta=None):
         payload = {
             "ts": time.time(),
@@ -45,8 +45,11 @@ def make_reporter(api_url):
             "intensity": intensity,
             "meta": meta or {},
         }
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         try:
-            requests.post(f"{api_url}/api/ingest/network", json=payload, timeout=3)
+            requests.post(f"{api_url}/api/ingest/network", json=payload, headers=headers, timeout=3)
         except requests.RequestException:
             logger.warning("Failed to forward alert to API at %s — is it running?", api_url)
         # Always also log locally so operators see it even if the API is down.
@@ -87,6 +90,7 @@ def main():
     parser.add_argument("--interface", help="Network interface to sniff on")
     parser.add_argument("--filter", dest="bpf_filter", default="ip or arp")
     parser.add_argument("--api", default="http://127.0.0.1:5000", help="Base URL of the Sentry API")
+    parser.add_argument("--api-key", help="API key for authentication")
     parser.add_argument(
         "--show-all-traffic",
         action="store_true",
@@ -96,7 +100,7 @@ def main():
     args = parser.parse_args()
 
     tracker = FlowTracker()
-    reporter = make_reporter(args.api)
+    reporter = make_reporter(args.api, args.api_key)
     sig_engine = SignatureEngine(DEFAULT_CONFIG, reporter)
     capture = PacketCapture(interface=args.interface, bpf_filter=args.bpf_filter)
 

@@ -13,11 +13,38 @@
 
 <header>
   <div class="brand"><span class="dot"></span>SENTRY</div>
-  <div class="subtitle">AI-powered threat detection — logs + live network</div>
+  <div class="subtitle">Threat detection console — logs + live network</div>
   <div class="api-status" id="api-status">connecting...</div>
+  <div class="user-profile" id="user-profile" style="display:none; margin-left:auto; display:flex; align-items:center; gap:12px;">
+    <span id="display-username" style="color:var(--low); font-weight:600; font-size:12px;"></span>
+    <button id="logout-btn" class="logout-button">Logout</button>
+  </div>
 </header>
 
-<main>
+<div id="auth-container" class="auth-container">
+  <div class="auth-card">
+    <div class="auth-title">SENTRY CONSOLE</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Login</div>
+      <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Register</div>
+    </div>
+    <form id="auth-form" class="auth-form" onsubmit="handleAuthSubmit(event)">
+      <div class="form-group">
+        <label for="auth-username">Username</label>
+        <input type="text" id="auth-username" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" id="auth-submit-btn">Login</button>
+    </form>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="api-key-display" class="api-key-box" style="display: none;"></div>
+  </div>
+</div>
+
+<main style="display: none;">
   <section class="stat-grid" id="stat-grid">
     <div class="stat-card"><div class="stat-label">Total Events</div><div class="stat-value" id="s-total">—</div></div>
     <div class="stat-card"><div class="stat-label">Anomalies</div><div class="stat-value" id="s-anomalies">—</div></div>
@@ -58,6 +85,11 @@
   </section>
 
   <section class="panel">
+    <div class="panel-title">// ranked alert queue (top 20 by threat score)</div>
+    <div class="feed ranked-feed" id="ranked-alerts-feed"></div>
+  </section>
+
+  <section class="panel">
     <div class="panel-title">// analyse a login attempt</div>
     <form id="analyse-form" class="analyse-form">
       <input name="ip_address" placeholder="IP address" value="45.33.32.156" required>
@@ -74,6 +106,39 @@
     <div id="analyse-result"></div>
   </section>
 </main>
+
+<div id="entity-modal" class="modal-backdrop">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">// entity history</div>
+        <div class="modal-ip" id="entity-modal-ip">—</div>
+      </div>
+      <button class="modal-close" id="entity-modal-close" onclick="closeEntityModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="panel chart-panel">
+        <div class="panel-title">// score & baseline confidence trend</div>
+        <canvas id="chart-entity-history" height="160"></canvas>
+      </div>
+      <div class="panel table-panel">
+        <div class="panel-title">// event history</div>
+        <table class="data-table" id="entity-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Score</th>
+              <th>Attack Type</th>
+              <th>Cold Start</th>
+              <th>Explanation</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="dashboard.js"></script>
 </body>

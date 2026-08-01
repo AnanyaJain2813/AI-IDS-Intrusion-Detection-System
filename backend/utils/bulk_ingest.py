@@ -57,8 +57,14 @@ def run(input_path, db_path, model_path):
             "threat_level": result["threat_level"],
             "threat_color": result["threat_color"],
             "is_anomaly": result["is_anomaly"],
+            "attack_type": result.get("attack_type"),
             "message": f"{record['username']}@{record['ip_address']} — {category}",
-            "meta": {},
+            "meta": {
+                "explanation": result.get("explanation", ""),
+                "feature_contributions": result.get("feature_contributions", []),
+                "cold_start": result.get("cold_start", False),
+                "baseline_confidence": result.get("baseline_confidence", 1.0),
+            },
         })
 
     db.insert_many(events)

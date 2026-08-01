@@ -28,16 +28,51 @@ FEATURE_NAMES = [
 
 
 class IPHistory:
-    """Tracks per-IP attempt/failure counts as records are processed in order."""
+    """Tracks per-IP attempt/failure counts as records are processed in order.
+
+    Extended fields for attack-type classification:
+      ip_usernames  — distinct usernames seen per source IP
+      ip_ports      — distinct destination ports seen per source IP
+      username_last_success_ip — last IP from which each username succeeded
+      ip_user_agents — per-(ip, username) set of distinct user-agent strings
+    """
 
     def __init__(self):
-        self.attempts = defaultdict(int)
-        self.failures = defaultdict(int)
+        self.attempts = defaultdict(float)
+        self.failures = defaultdict(float)
+        self.lifetime_observations = defaultdict(int)
+        # Attack-type classification helpers
+        self.ip_usernames = defaultdict(set)
+        self.ip_ports = defaultdict(set)
+        self.username_last_success_ip = {}          # username -> most recent success IP
+        self.username_prev_success_ip = {}          # username -> second-most-recent success IP
+        self.ip_user_agents = defaultdict(set)      # (ip, username) -> set of user-agents
 
-    def observe(self, ip, failed):
-        self.attempts[ip] += 1
+    def observe(self, ip, failed, username=None, port=None,
+                user_agent=None, status=None):
+        self.lifetime_observations[ip] += 1
+        
+        # Concept Drift: Exponential decay on behavioral stats
+        # alpha = 0.95 means series converges to 20 for continuous activity,
+        # allowing fast bursts to cross threshold (10) while naturally decaying old events.
+        self.attempts[ip] = self.attempts.get(ip, 0.0) * 0.95 + 1.0
+        
         if failed:
-            self.failures[ip] += 1
+            self.failures[ip] = self.failures.get(ip, 0.0) * 0.95 + 1.0
+        else:
+            self.failures[ip] = self.failures.get(ip, 0.0) * 0.95
+        if username:
+            self.ip_usernames[ip].add(username)
+        if port is not None:
+            self.ip_ports[ip].add(port)
+        if user_agent and username:
+            self.ip_user_agents[(ip, username)].add(user_agent)
+        if status and status.lower() == "success" and username:
+            # Rotate: prev <- last <- current
+            current_last = self.username_last_success_ip.get(username)
+            if current_last is not None:
+                self.username_prev_success_ip[username] = current_last
+            self.username_last_success_ip[username] = ip
 
     def attempt_count(self, ip):
         return self.attempts.get(ip, 0)
@@ -45,6 +80,22 @@ class IPHistory:
     def fail_rate(self, ip):
         total = self.attempts.get(ip, 0)
         return (self.failures.get(ip, 0) / total) if total else 0.0
+
+    def distinct_usernames(self, ip):
+        """Number of distinct usernames seen from this IP."""
+        return len(self.ip_usernames.get(ip, set()))
+
+    def distinct_ports(self, ip):
+        """Number of distinct destination ports seen from this IP."""
+        return len(self.ip_ports.get(ip, set()))
+
+    def last_success_ip(self, username):
+        """Return the last IP from which this username succeeded, or None."""
+        return self.username_last_success_ip.get(username)
+
+    def distinct_user_agents(self, ip, username):
+        """Number of distinct user-agents seen for this (ip, username) pair."""
+        return len(self.ip_user_agents.get((ip, username), set()))
 
 
 def _parse_hour(timestamp):
@@ -67,12 +118,17 @@ def extract_features(record, ip_history: IPHistory, failed_attempts_hint=None):
     status = record.get("status", "Success")
     port = int(record.get("port", 0))
     is_failed = status.lower() == "failed"
+    user_agent = record.get("user_agent")
 
     hour = record.get("hour")
     if hour is None:
         hour = _parse_hour(record.get("timestamp", ""))
 
-    ip_history.observe(ip, is_failed)
+    ip_history.observe(
+        ip, is_failed,
+        username=username, port=port,
+        user_agent=user_agent, status=status,
+    )
 
     failed_attempts = (
         failed_attempts_hint if failed_attempts_hint is not None

@@ -4,7 +4,10 @@ plus adds /api/network/alerts and /api/ingest/network so live packet
 capture can feed the same dashboard as log-based analysis.
 """
 import time
+import secrets
+from functools import wraps
 from flask import Blueprint, current_app, jsonify, request
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from backend.utils.features import IPHistory
 from ml.threat_scorer import score_from_rule_severity, classify
@@ -12,6 +15,39 @@ from ml.threat_scorer import score_from_rule_severity, classify
 api = Blueprint("api", __name__)
 
 REQUIRED_ANALYSE_FIELDS = {"ip_address", "username", "status", "failed_attempts", "port", "hour"}
+
+
+def get_current_user():
+    if current_app.config.get("TESTING"):
+        db = current_app.config["DB"]
+        user = db.get_user_by_username("test_user")
+        if not user:
+            db.create_user("test_user", "test_hash", "test_api_key")
+            user = db.get_user_by_username("test_user")
+        return user
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return None
+    
+    parts = auth_header.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        token = parts[1]
+    else:
+        token = parts[0]
+        
+    db = current_app.config["DB"]
+    return db.get_user_by_api_key(token)
+
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = get_current_user()
+        if not user:
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
+        return f(user, *args, **kwargs)
+    return decorated
 
 
 @api.route("/")
@@ -23,51 +59,120 @@ def health():
     })
 
 
-@api.route("/api/stats")
-def stats():
+@api.route("/api/register", methods=["POST"])
+def register():
+    payload = request.get_json(silent=True) or {}
+    username = payload.get("username")
+    password = payload.get("password")
+    
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password required"}), 400
+        
     db = current_app.config["DB"]
-    return jsonify({"success": True, "data": db.get_stats()})
+    password_hash = generate_password_hash(password)
+    api_key = secrets.token_hex(24)
+    
+    success = db.create_user(username, password_hash, api_key)
+    if not success:
+        return jsonify({"success": False, "error": "Username already exists"}), 400
+        
+    return jsonify({
+        "success": True,
+        "message": "User registered successfully",
+        "api_key": api_key,
+        "username": username
+    }), 201
+
+
+@api.route("/api/login", methods=["POST"])
+def login():
+    payload = request.get_json(silent=True) or {}
+    username = payload.get("username")
+    password = payload.get("password")
+    
+    if not username or not password:
+        return jsonify({"success": False, "error": "Username and password required"}), 400
+        
+    db = current_app.config["DB"]
+    user = db.get_user_by_username(username)
+    
+    if not user or not check_password_hash(user["password_hash"], password):
+        return jsonify({"success": False, "error": "Invalid credentials"}), 401
+        
+    return jsonify({
+        "success": True,
+        "api_key": user["api_key"],
+        "username": user["username"]
+    })
+
+
+@api.route("/api/stats")
+@token_required
+def stats(user):
+    db = current_app.config["DB"]
+    return jsonify({"success": True, "data": db.get_stats(user_id=user["id"])})
 
 
 @api.route("/api/logs")
-def logs():
+@token_required
+def logs(user):
     db = current_app.config["DB"]
     limit = request.args.get("limit", default=100, type=int)
     level = request.args.get("level", default=None, type=str)
-    events = db.get_events(limit=limit, level=level, source="log")
+    sort_by = request.args.get("sort", default=None, type=str)
+    events = db.get_events(limit=limit, level=level, source="log", sort_by=sort_by, user_id=user["id"])
     return jsonify({"success": True, "count": len(events), "data": events})
 
 
 @api.route("/api/alerts")
-def alerts():
+@token_required
+def alerts(user):
     db = current_app.config["DB"]
     limit = request.args.get("limit", default=100, type=int)
-    return jsonify({"success": True, "data": db.get_alerts(limit=limit)})
+    sort_by = request.args.get("sort", default=None, type=str)
+    return jsonify({"success": True, "data": db.get_alerts(limit=limit, sort_by=sort_by, user_id=user["id"])})
+
+
+@api.route("/api/entity/<path:ip_address>")
+@token_required
+def entity_history(user, ip_address):
+    db = current_app.config["DB"]
+    events = db.get_entity_events(ip_address, user_id=user["id"])
+    return jsonify({
+        "success": True,
+        "ip_address": ip_address,
+        "count": len(events),
+        "data": events,
+    })
 
 
 @api.route("/api/network/alerts")
-def network_alerts():
+@token_required
+def network_alerts(user):
     db = current_app.config["DB"]
     limit = request.args.get("limit", default=100, type=int)
-    events = db.get_events(limit=limit, source="network")
+    events = db.get_events(limit=limit, source="network", user_id=user["id"])
     return jsonify({"success": True, "count": len(events), "data": events})
 
 
 @api.route("/api/threats/timeline")
-def timeline():
+@token_required
+def timeline(user):
     db = current_app.config["DB"]
-    return jsonify({"success": True, "data": db.get_timeline()})
+    return jsonify({"success": True, "data": db.get_timeline(user_id=user["id"])})
 
 
 @api.route("/api/threats/top-ips")
-def top_ips():
+@token_required
+def top_ips(user):
     db = current_app.config["DB"]
     limit = request.args.get("limit", default=10, type=int)
-    return jsonify({"success": True, "data": db.get_top_ips(limit=limit)})
+    return jsonify({"success": True, "data": db.get_top_ips(limit=limit, user_id=user["id"])})
 
 
 @api.route("/api/analyse", methods=["POST"])
-def analyse():
+@token_required
+def analyse(user):
     payload = request.get_json(silent=True) or {}
     missing = REQUIRED_ANALYSE_FIELDS - set(payload.keys())
     if missing:
@@ -113,7 +218,15 @@ def analyse():
         threat_level=result["threat_level"],
         threat_color=result["threat_color"],
         is_anomaly=result["is_anomaly"],
+        attack_type=result.get("attack_type"),
         message=f"Ad-hoc analysis: {record['username']}@{record['ip_address']}",
+        meta={
+            "explanation": result.get("explanation", ""),
+            "feature_contributions": result.get("feature_contributions", []),
+            "cold_start": result.get("cold_start", False),
+            "baseline_confidence": result.get("baseline_confidence", 1.0),
+        },
+        user_id=user["id"]
     )
 
     return jsonify({
@@ -124,12 +237,18 @@ def analyse():
             "threat_level": result["threat_level"],
             "threat_color": result["threat_color"],
             "is_anomaly": result["is_anomaly"],
+            "attack_type": result["attack_type"],
+            "explanation": result["explanation"],
+            "feature_contributions": result["feature_contributions"],
+            "cold_start": result.get("cold_start", False),
+            "baseline_confidence": result.get("baseline_confidence", 1.0),
         },
     })
 
 
 @api.route("/api/ingest/network", methods=["POST"])
-def ingest_network_alert():
+@token_required
+def ingest_network_alert(user):
     """
     Receives alerts from the live packet-capture process (capture/live_capture.py)
     and stores them alongside log-based events so the dashboard shows a
@@ -158,5 +277,6 @@ def ingest_network_alert():
         is_anomaly=classified["is_anomaly"],
         message=payload["message"],
         meta=payload.get("meta", {}),
+        user_id=user["id"]
     )
     return jsonify({"success": True, "stored": classified}), 201

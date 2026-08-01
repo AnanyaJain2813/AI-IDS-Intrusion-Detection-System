@@ -1,4 +1,4 @@
-# 🛡️ Sentry — AI-Powered Threat Detection System
+# 🛡️ Sentry — Threat Detection System
 
 A full-stack security platform that combines **log-based analysis** (Isolation Forest anomaly detection over authentication logs) with **live network traffic monitoring** (real-time packet capture + signature detection), unified in one REST API and one dashboard.
 
@@ -6,7 +6,7 @@ A full-stack security platform that combines **log-based analysis** (Isolation F
 
 ## What makes this different from a typical log-analysis demo
 
-Most "AI threat detection" portfolio projects (this one included, in an earlier form) only ever look at a static log file. Sentry does that **and** watches live traffic:
+Most threat detection portfolio projects (this one included, in an earlier form) only ever look at a static log file. Sentry does that **and** watches live traffic:
 
 | Capability | Log-only systems | Sentry |
 |---|---|---|

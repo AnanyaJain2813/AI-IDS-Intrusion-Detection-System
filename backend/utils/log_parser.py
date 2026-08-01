@@ -60,6 +60,8 @@ def parse_csv_log(path):
                 "username": row["username"],
                 "status": row["status"],
                 "port": int(row["port"]),
+                "user_agent": row.get("user_agent") or None,  # optional column
+                "ground_truth": row.get("attack_type") or "normal",
             })
     return records
 
