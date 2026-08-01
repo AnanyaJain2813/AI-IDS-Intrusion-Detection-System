@@ -83,16 +83,9 @@ async function handleAuthSubmit(event) {
     localStorage.setItem("sentry_api_key", data.api_key);
     localStorage.setItem("sentry_username", data.username);
 
-    if (currentAuthTab === "register") {
-      keyDisplayEl.innerHTML = `🔑 <strong>Registration Successful!</strong><br><br>Copy your Agent API Key:<br><code style="font-weight:bold; color:var(--low); font-size:13px; display:block; margin: 8px 0;">${data.api_key}</code><button onclick="checkLoginState()" style="padding:6px 12px; font-family:inherit; background:var(--low); color:var(--bg); border:none; cursor:pointer; font-weight:bold;">Continue to Dashboard</button>`;
-      keyDisplayEl.style.display = "block";
-      usernameInput.value = "";
-      passwordInput.value = "";
-    } else {
-      usernameInput.value = "";
-      passwordInput.value = "";
-      checkLoginState();
-    }
+    usernameInput.value = "";
+    passwordInput.value = "";
+    checkLoginState();
   } catch (err) {
     errorEl.textContent = "Could not connect to server. Render free instance may still be waking up — please wait 15 seconds and try again.";
   } finally {
