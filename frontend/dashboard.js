@@ -356,6 +356,9 @@ function renderEntityHistory(events) {
 }
 
 async function refresh() {
+  const token = localStorage.getItem("sentry_api_key");
+  if (!token) return;
+
   try {
     const [stats, timeline, topIps, logAlerts, networkAlerts, rankedAlerts] = await Promise.all([
       fetchJSON("/api/stats"),
