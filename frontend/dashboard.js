@@ -47,12 +47,12 @@ async function pingServer() {
     } else {
       badge.textContent = "● WAKING UP FREE SERVER...";
       badge.style.color = "var(--medium)";
-      setTimeout(pingServer, 4000);
+      setTimeout(pingServer, 3000);
     }
   } catch (e) {
     badge.textContent = "● WAKING UP FREE SERVER (PLEASE WAIT)...";
     badge.style.color = "var(--medium)";
-    setTimeout(pingServer, 4000);
+    setTimeout(pingServer, 3000);
   }
 }
 
@@ -61,75 +61,72 @@ async function doAuth(type) {
   const passwordInput = document.getElementById("auth-password");
   const errorEl = document.getElementById("auth-error");
 
-  errorEl.style.color = "var(--high)";
+  if (!errorEl || !usernameInput || !passwordInput) return;
+
+  errorEl.style.color = "var(--low)";
   errorEl.textContent = "";
 
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
 
   if (!username || !password) {
+    errorEl.style.color = "var(--high)";
     errorEl.textContent = "Please enter both username and password.";
     return;
   }
 
-  const endpoint = type === "login" ? "/api/login" : "/api/register";
   const btnLogin = document.getElementById("btn-auth-login");
   const btnRegister = document.getElementById("btn-auth-register");
 
   if (btnLogin) btnLogin.disabled = true;
   if (btnRegister) btnRegister.disabled = true;
 
-  errorEl.style.color = "var(--low)";
   errorEl.textContent = `Connecting (${type === "register" ? "registering" : "logging in"})...`;
 
-  // Attempt up to 3 retries automatically if server is cold-starting
-  let attempt = 0;
-  const maxAttempts = 3;
-  let success = false;
+  try {
+    let endpoint = type === "login" ? "/api/login" : "/api/register";
 
-  while (attempt < maxAttempts && !success) {
-    attempt++;
-    if (attempt > 1) {
-      errorEl.textContent = `Waking up Render server (Attempt ${attempt}/${maxAttempts})...`;
-    }
+    let res = await fetch(`${API}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
 
-    try {
-      const res = await fetch(`${API}${endpoint}`, {
+    let data = await res.json();
+
+    // Smart fallback: If register fails because account exists, automatically attempt login!
+    if (!data.success && type === "register" && data.error && data.error.toLowerCase().includes("exist")) {
+      errorEl.textContent = "Account exists — logging you in...";
+      res = await fetch(`${API}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        errorEl.style.color = "var(--high)";
-        errorEl.textContent = data.error || `${type} failed. Please try again.`;
-        break;
-      }
-
-      localStorage.setItem("sentry_api_key", data.api_key);
-      localStorage.setItem("sentry_username", data.username);
-
-      usernameInput.value = "";
-      passwordInput.value = "";
-      errorEl.textContent = "";
-      success = true;
-
-      checkLoginState();
-      pingServer();
-    } catch (err) {
-      if (attempt >= maxAttempts) {
-        errorEl.style.color = "var(--high)";
-        errorEl.textContent = "Could not connect to backend server. Please wait 10 seconds for the free Render server to finish waking up, then try again.";
-      } else {
-        await new Promise(r => setTimeout(r, 4000));
-      }
+      data = await res.json();
     }
-  }
 
-  if (btnLogin) btnLogin.disabled = false;
-  if (btnRegister) btnRegister.disabled = false;
+    if (!data.success) {
+      errorEl.style.color = "var(--high)";
+      errorEl.textContent = data.error || "Authentication failed. Please check credentials.";
+      return;
+    }
+
+    // Success! Save session state & open dashboard
+    localStorage.setItem("sentry_api_key", data.api_key);
+    localStorage.setItem("sentry_username", data.username);
+
+    usernameInput.value = "";
+    passwordInput.value = "";
+    errorEl.textContent = "";
+
+    checkLoginState();
+  } catch (err) {
+    errorEl.style.color = "var(--high)";
+    errorEl.textContent = "Could not connect to server. Free server is waking up — wait 10s and try again.";
+  } finally {
+    if (btnLogin) btnLogin.disabled = false;
+    if (btnRegister) btnRegister.disabled = false;
+  }
 }
 
 function checkLoginState() {
