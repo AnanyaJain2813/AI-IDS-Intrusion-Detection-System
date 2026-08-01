@@ -24,20 +24,19 @@
 <div id="auth-container" class="auth-container">
   <div class="auth-card">
     <div class="auth-title">SENTRY CONSOLE</div>
-    <div class="auth-tabs">
-      <div class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Login</div>
-      <div class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Register</div>
-    </div>
-    <form id="auth-form" class="auth-form" onsubmit="handleAuthSubmit(event)">
+    <form id="auth-form" class="auth-form" onsubmit="event.preventDefault();">
       <div class="form-group">
         <label for="auth-username">Username</label>
-        <input type="text" id="auth-username" required autocomplete="username">
+        <input type="text" id="auth-username" required autocomplete="username" placeholder="Enter username">
       </div>
       <div class="form-group">
         <label for="auth-password">Password</label>
-        <input type="password" id="auth-password" required autocomplete="current-password">
+        <input type="password" id="auth-password" required autocomplete="current-password" placeholder="Enter password">
       </div>
-      <button type="submit" id="auth-submit-btn">Login</button>
+      <div style="display: flex; gap: 12px; margin-top: 10px;">
+        <button type="button" id="btn-auth-login" onclick="doAuth('login')" style="flex: 1;">LOGIN</button>
+        <button type="button" id="btn-auth-register" onclick="doAuth('register')" style="flex: 1; background: var(--ok); color: #0a0d10;">REGISTER</button>
+      </div>
     </form>
     <div id="auth-error" class="auth-error"></div>
     <div id="api-key-display" class="api-key-box" style="display: none;"></div>

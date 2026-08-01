@@ -28,17 +28,6 @@ async function fetchJSON(path) {
   return res.json();
 }
 
-let currentAuthTab = "login";
-
-function switchAuthTab(tab) {
-  currentAuthTab = tab;
-  document.getElementById("tab-login").classList.toggle("active", tab === "login");
-  document.getElementById("tab-register").classList.toggle("active", tab === "register");
-  document.getElementById("auth-submit-btn").textContent = tab === "login" ? "Login" : "Register";
-  document.getElementById("auth-error").textContent = "";
-  document.getElementById("api-key-display").style.display = "none";
-}
-
 function handleUnauthorized() {
   localStorage.removeItem("sentry_api_key");
   localStorage.removeItem("sentry_username");
@@ -47,36 +36,44 @@ function handleUnauthorized() {
   document.getElementById("user-profile").style.display = "none";
 }
 
-async function handleAuthSubmit(event) {
-  event.preventDefault();
+async function doAuth(type) {
   const usernameInput = document.getElementById("auth-username");
   const passwordInput = document.getElementById("auth-password");
   const errorEl = document.getElementById("auth-error");
-  const keyDisplayEl = document.getElementById("api-key-display");
 
+  errorEl.style.color = "var(--high)";
   errorEl.textContent = "";
-  keyDisplayEl.style.display = "none";
 
-  const username = usernameInput.value;
-  const password = passwordInput.value;
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value.trim();
 
-  const url = currentAuthTab === "login" ? "/api/login" : "/api/register";
+  if (!username || !password) {
+    errorEl.textContent = "Please enter both username and password.";
+    return;
+  }
 
-  const submitBtn = document.getElementById("auth-submit-btn");
-  const originalBtnText = submitBtn.textContent;
-  submitBtn.disabled = true;
-  submitBtn.textContent = "Connecting to server (waking up)...";
+  const endpoint = type === "login" ? "/api/login" : "/api/register";
+  const btnLogin = document.getElementById("btn-auth-login");
+  const btnRegister = document.getElementById("btn-auth-register");
+
+  if (btnLogin) btnLogin.disabled = true;
+  if (btnRegister) btnRegister.disabled = true;
+
+  errorEl.style.color = "var(--low)";
+  errorEl.textContent = `Connecting (${type === "register" ? "registering" : "logging in"})...`;
 
   try {
-    const res = await fetch(`${API}${url}`, {
+    const res = await fetch(`${API}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password })
     });
+
     const data = await res.json();
 
-    if (!data.success) {
-      errorEl.textContent = data.error || "Authentication failed";
+    if (!res.ok || !data.success) {
+      errorEl.style.color = "var(--high)";
+      errorEl.textContent = data.error || `${type} failed. Please try again.`;
       return;
     }
 
@@ -85,12 +82,15 @@ async function handleAuthSubmit(event) {
 
     usernameInput.value = "";
     passwordInput.value = "";
+    errorEl.textContent = "";
+
     checkLoginState();
   } catch (err) {
-    errorEl.textContent = "Could not connect to server. Render free instance may still be waking up — please wait 15 seconds and try again.";
+    errorEl.style.color = "var(--high)";
+    errorEl.textContent = "Could not connect to server. Free server may be waking up — wait 10s and try again.";
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = originalBtnText;
+    if (btnLogin) btnLogin.disabled = false;
+    if (btnRegister) btnRegister.disabled = false;
   }
 }
 
